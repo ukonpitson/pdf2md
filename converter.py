@@ -2,11 +2,11 @@ import fitz  # PyMuPDF
 import re
 import os
 import cv2
+import asyncio
 import numpy as np
 from PIL import Image
-import winocr
-import asyncio
 from pdf2image import convert_from_path
+import winocr
 
 import config
 
@@ -23,17 +23,23 @@ class PDFToMarkdownConverter:
         self.footnotes = []
         self.markdown_lines = []
 
+    def _run_winocr(self, pil_image):
+        """Hàm bọc gọi winocr (bất đồng bộ) xử lý ảnh PIL với ngôn ngữ Tiếng Việt"""
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+        result = loop.run_until_complete(
+            winocr.recognize_pil(pil_image, lang=config.WIN_OCR_LANG)
+        )
+        return result.get("text", "")
+
     def classify_page(self, page):
         """Phân loại trang: Native Text hay Scan OCR"""
         text = page.get_text()
         return len(text.strip()) >= config.CLASSIFY_CHAR_THRESHOLD
-
-    def _run_winocr(self, pil_image):
-        """Gọi Windows Media OCR API bất đồng bộ"""
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        result = loop.run_until_complete(winocr.recognize_pil(pil_image, lang=config.OCR_LANG))
-        return result.text
 
     def parse_regex_structure(self, line):
         """Nhận diện cấu trúc Heading & List qua Regex"""
@@ -59,7 +65,7 @@ class PDFToMarkdownConverter:
         return config.IMAGE_NAMING_PATTERN.format(page_num=page_num, img_num=img_num)
 
     # =========================================================================
-    # NHÁNH A: NATIVE TEXT (GỘP ĐOẠN THEO TEXT BLOCK)
+    # NHÁNH A: NATIVE TEXT
     # =========================================================================
     def process_text_page(self, page, page_num):
         img_count = 1
@@ -89,17 +95,14 @@ class PDFToMarkdownConverter:
                 self.markdown_lines.append(f"\n![Bảng tại trang {page_num}](./images/{table_filename})\n")
                 img_count += 1
 
-        # 3. Trích xuất Text & Gộp đoạn văn theo Block
+        # 3. Trích xuất Text & Gộp đoạn
         blocks = page.get_text("blocks")
-        
         for b in blocks:
             x0, y0, x1, y1, text, block_no, block_type = b
             
-            # Bỏ Header/Footer
             if y1 < config.HEADER_RATIO * page_height or y0 > (1 - config.FOOTER_RATIO) * page_height:
                 continue
                 
-            # Trích Footnote
             if y0 > config.FOOTNOTE_START_RATIO * page_height and len(text.strip()) < 200:
                 self.footnotes.append({"page": page_num, "text": text.strip()})
                 fn_idx = len(self.footnotes)
@@ -111,7 +114,6 @@ class PDFToMarkdownConverter:
                 continue
 
             current_paragraph = []
-
             for line in raw_lines:
                 is_heading_or_list = any([
                     config.REGEX_PATTERNS["H1"].match(line),
@@ -133,17 +135,25 @@ class PDFToMarkdownConverter:
                 self.markdown_lines.append(" ".join(current_paragraph))
 
     # =========================================================================
-    # NHÁNH B: SCANNED IMAGE (WINDOWS MEDIA OCR ENGINE)
+    # NHÁNH B: SCANNED IMAGE (DÙNG WINOCR THUẦN TIẾNG VIỆT)
     # =========================================================================
     def process_scanned_page(self, page_num):
-        images = convert_from_path(self.pdf_path, first_page=page_num, last_page=page_num, dpi=config.DPI)
+        # 1. Chuyển PDF sang Ảnh có kèm poppler_path
+        images = convert_from_path(
+            self.pdf_path, 
+            first_page=page_num, 
+            last_page=page_num, 
+            dpi=config.DPI,
+            poppler_path=config.POPPLER_PATH
+        )
+        
         open_cv_image = np.array(images[0])
         gray = cv2.cvtColor(open_cv_image, cv2.COLOR_RGB2GRAY)
         h, w = gray.shape
 
         thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
         
-        # 1. Phát hiện & Cắt Bảng/Ảnh
+        # 2. Cắt Bảng/Ảnh
         img_count = 1
         contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
@@ -158,27 +168,26 @@ class PDFToMarkdownConverter:
                 img_count += 1
                 cv2.rectangle(thresh, (x, y), (x + box_w, y + box_h), (255, 255, 255), -1)
 
-        # 2. Xóa Header / Footer
+        # 3. Masking Header / Footer
         thresh[0:int(h * config.HEADER_RATIO), :] = 255
         thresh[int(h * (1 - config.FOOTER_RATIO)):h, :] = 255
 
-        # 3. Đọc Footnote qua WinOCR
+        # 4. Trích Footnote qua WinOCR
         fn_start_y = int(h * config.FOOTNOTE_START_RATIO)
         fn_end_y = int(h * (1 - config.FOOTER_RATIO))
         footnote_crop = thresh[fn_start_y:fn_end_y, :]
-        
         fn_pil = Image.fromarray(footnote_crop)
-        fn_text = self._run_winocr(fn_pil).strip()
         
+        fn_text = self._run_winocr(fn_pil).strip()
         if fn_text and len(fn_text) < 200:
             self.footnotes.append({"page": page_num, "text": fn_text})
             fn_idx = len(self.footnotes)
             self.markdown_lines.append(f"[^fn_{fn_idx}]")
             thresh[fn_start_y:fn_end_y, :] = 255
 
-        # 4. Đọc văn bản chính qua WinOCR
-        main_pil = Image.fromarray(thresh)
-        ocr_text = self._run_winocr(main_pil)
+        # 5. Đọc chữ toàn bộ trang bằng WinOCR (Mặc định vi-VN)
+        full_pil = Image.fromarray(thresh)
+        ocr_text = self._run_winocr(full_pil)
         
         for line in ocr_text.split('\n'):
             formatted = self.parse_regex_structure(line)
@@ -196,7 +205,7 @@ class PDFToMarkdownConverter:
                 print(f"  -> Nhánh A (Native Text)")
                 self.process_text_page(page, page_num)
             else:
-                print(f"  -> Nhánh B (Scanned Image - Windows OCR)")
+                print(f"  -> Nhánh B (Scanned Image - WinOCR Tiếng Việt)")
                 self.process_scanned_page(page_num)
                 
             self.markdown_lines.append("\n---\n")
@@ -211,4 +220,4 @@ class PDFToMarkdownConverter:
             f.write("\n\n".join(self.markdown_lines))
             
         print(f"\n==========================================")
-        print(f"HOÀN THÀNH! File xuất tại: {output_md_path}")
+        print(f"HOÀN THÀNH! Tệp xuất tại: {output_md_path}")

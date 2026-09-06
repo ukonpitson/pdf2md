@@ -4,8 +4,8 @@ from converter import PDFToMarkdownConverter
 
 def main():
     # File PDF mẫu nằm trong thư mục input mặc định
-    # input_pdf = os.path.join(config.DEFAULT_INPUT_DIR, "pdf_scan.pdf")
-    input_pdf = os.path.join(config.DEFAULT_INPUT_DIR, "pdf_text.pdf")
+    input_pdf = os.path.join(config.DEFAULT_INPUT_DIR, "pdf_scan.pdf")  
+    # input_pdf = os.path.join(config.DEFAULT_INPUT_DIR, "pdf_text.pdf")
     
     if not os.path.exists(input_pdf):
         print(f"Vui lòng chép file PDF cần chuyển đổi vào: {input_pdf}")
@@ -18,8 +18,8 @@ def main():
     )
     
     # Tiến hành chuyển đổi
-    # converter.convert(output_md_filename="result_scan.md")
-    converter.convert(output_md_filename="result_text.md")
+    converter.convert(output_md_filename="result_scan.md")
+    # converter.convert(output_md_filename="result_text.md")
 
 if __name__ == "__main__":
     main()

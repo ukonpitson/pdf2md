@@ -38,6 +38,15 @@ Hệ thống tự động chuyển đổi tài liệu PDF (dạng **Native Text*
 
 ## 📥 HƯỚNG DẪN CÀI ĐẶT
 
+Cài đặt Poppler
+
+``` Bash
+winget install oschwartz10612.Poppler
+```
+
+Cài đặt biến môi trường (Environment Variables)
+
+
 ### Bước 1: Clone repository và tạo môi trường ảo
 ```bash
 git clone [https://github.com/your-username/pdf-to-markdown-converter.git](https://github.com/your-username/pdf-to-markdown-converter.git)
