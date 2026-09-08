@@ -1,139 +1,117 @@
-# 📄 PDF to Markdown Converter (Automated Hybrid Pipeline)
+# DỰ ÁN PDF2MD - CHUYỂN ĐỔI PDF TIẾNG VIỆT SANG MARKDOWN
 
-Hệ thống tự động chuyển đổi tài liệu PDF (dạng **Native Text** hoặc **Scanned Image**) sang định dạng **Markdown (.md)** chuẩn hóa. Phần mềm áp dụng mô hình kiến trúc phân luồng đa nhánh dựa trên thị giác máy tính (OpenCV) và biểu thức chính quy (Regex).
-
----
-
-## 🚀 TÍNH NĂNG NỔI BẬT
-
-- **Phân luồng đa nhánh thông minh (Hybrid Engine):**
-  - **Nhánh A (Native Text PDF):** Trích xuất văn bản trực tiếp từ lớp vector với tốc độ cao và độ chính xác 100%.
-  - **Nhánh B (Scanned Image PDF):** Khử nhiễu, nhị phân hóa ảnh thích ứng (OpenCV) và nhận diện chữ bằng OCR (Tesseract / PaddleOCR).
-- **Chuẩn hóa văn bản:** Loại bỏ toàn bộ định dạng font/style phức tạp của PDF gốc, mặc định toàn bộ nội dung xuất ra dạng phông **Sans-Serif, Kích thước 14pt**.
-- **Cấu trúc hóa bằng Regex:** Tự động nhận diện các cấp tiêu đề (`# Heading 1`, `## Heading 2`, `### Heading 3`), danh sách liệt kê (`-`, `1.`) và trích dẫn dựa trên biểu thức chính quy.
-- **Tự động bóc tách Hình ảnh & Bảng:**
-  - Tự động phát hiện và cắt mọi hình ảnh, sơ đồ trong tài liệu.
-  - **Coi Bảng như 1 hình ảnh:** Cắt trọn vẹn khối Bảng thành ảnh riêng biệt thay vì OCR lại cấu trúc dòng/cột, giúp bảo toàn tính trực quan.
-  - Quy chuẩn đặt tên lưu trữ đồng nhất: `page-#_img-#.png`.
-- **Quản lý Footnote tập trung:** Gom toàn bộ ghi chú chân trang (Footnote) về cuối tập tin Markdown, kèm theo thẻ đánh dấu rõ xuất xứ từ **Trang gốc nào (Page #)** giúp dễ dàng rà soát và đối chiếu.
+Công cụ hỗ trợ trích xuất tài liệu PDF (Native Text & Scanned PDF) sang định dạng Markdown chuẩn, hỗ trợ OCR Tiếng Việt chính xác, tách bảng, cắt ảnh và tự động tổng hợp Footnote.
 
 ---
 
-## 🛠️ YÊU CẦU MÔI TRƯỜNG & HỆ THỐNG
+## 1. YÊU CẦU NỀN TẢNG (PREREQUISITES)
 
-### 1. Công nghệ sử dụng (Tech Stack)
-* **Ngôn ngữ:** Python 3.10+
-* **Thư viện chính:**
-  * `PyMuPDF` (`fitz`): Đọc và xử lý cấu trúc PDF vector.
-  * `pdf2image`: Render trang PDF thành ảnh bitmap.
-  * `opencv-python` & `Pillow`: Xử lý ảnh, cắt bảng và hình ảnh.
-  * `pytesseract`: Giao tiếp với công cụ Tesseract OCR.
-
-### 2. Công cụ phụ thuộc ngoài (External Dependencies)
-Để hệ thống chạy trọn vẹn cả Nhánh B (OCR), máy tính cần được cài đặt sẵn:
-1. **Poppler:** Phục vụ cho thư viện `pdf2image`.
-2. **Tesseract-OCR:** Cài đặt phần mềm Tesseract và tải thêm gói ngôn ngữ Tiếng Việt (`vie.traineddata`).
+* **Hệ điều hành:** Windows 10 / Windows 11 (64-bit).
+* **Môi trường:** Python 3.9 trở lên (Khuyên dùng Python 3.10 hoặc 3.11).
 
 ---
 
-## 📥 HƯỚNG DẪN CÀI ĐẶT
+## 2. NƠI TẢI PHẦN MỀM & DỮ LIỆU CẦN THIẾT
 
-### Bước 1: Clone repository và tạo môi trường ảo
-```bash
-git clone [https://github.com/your-username/pdf-to-markdown-converter.git](https://github.com/your-username/pdf-to-markdown-converter.git)
-cd pdf-to-markdown-converter
+### A. Công cụ Poppler for Windows (Bắt buộc)
+* **Link tải:** [Poppler for Windows - Release 24.08.0](https://github.com/oschwartz10612/poppler-windows/releases/download/v24.08.0-0/Release-24.08.0-0.zip)
 
-# Tạo và kích hoạt môi trường ảo (Khuyên dùng)
-python -m venv venv
-# On Windows:
-venv\Scripts\activate
-# On macOS/Linux:
-source venv/bin/activate
-```
+### B. Các Mô hình OCR EasyOCR (Nếu cài cho MÁY OFFLINE)
+Tải 3 tệp nén đính kèm dưới đây từ máy có kết nối Internet (giữ nguyên định dạng `.zip` không giải nén):
+1. **Mô hình phát hiện văn bản (Craft Model):** [craft_mlt_25k.zip](https://github.com/JaidedAI/EasyOCR/releases/download/v1.3/craft_mlt_25k.zip)
+2. **Mô hình nhận diện Tiếng Việt (Vietnamese Model):** [vietnamese.zip](https://github.com/JaidedAI/EasyOCR/releases/download/v1.3/vietnamese.zip)
+3. **Mô hình nhận diện Tiếng Anh (English Model):** [latin.zip](https://github.com/JaidedAI/EasyOCR/releases/download/v1.0.8/latin.zip)
 
-### Bước 2: Cài đặt các thư viện Python
+---
+
+## 3. HƯỚNG DẪN CÀI ĐẶT DÙNG CHO MÁY ONLINE (CÓ INTERNET)
+
+### Bước 1: Cài đặt Poppler
+1. Giải nén file `Release-24.08.0-0.zip` đã tải vào ổ `C:\poppler\`.
+2. Đảm bảo đường dẫn tới các tệp thực thi là: `C:\poppler\Release-24.08.0-0\poppler-24.08.0\Library\bin`.
+
+### Bước 2: Cài đặt thư viện Python
+Mở Terminal/CMD tại thư mục dự án và chạy:
 ```bash
 pip install -r requirements.txt
-```
-Nội dung tệp requirements.txt:
-```Plaintext
-PyMuPDF>=1.23.0
-pdf2image>=1.16.3
-opencv-python>=4.8.0
-Pillow>=10.0.0
-pytesseract>=0.3.10
-numpy>=1.24.0
+
 ```
 
-## 💻 HƯỚNG DẪN SỬ DỤNG
+### Bước 3: Cấu hình chế độ Online
 
-### 1. Cấu trúc thư mục dự án
-```Plaintext
-├── input/                  # Thư mục chứa các file PDF đầu vào
-├── output/                 # Thư mục chứa file .md và ảnh xuất ra
-│   ├── images/             # Chứa các file page-#_img-#.png (Bảng & Ảnh cắt)
-│   └── result.md           # Tệp Markdown hoàn chỉnh
-├── converter.py            # Mã nguồn xử lý chính (Pipeline Engine)
-├── main.py                 # File thực thi chương trình
-├── requirements.txt        # Danh sách thư viện cần thiết
-└── README.md               # Tài liệu hướng dẫn
+Trong file `config.py`, cài đặt tham số:
+
+```python
+OFFLINE_MODE = False
+
 ```
 
-### Chạy chương trình qua Python
-```Python
-from converter import PDFToMarkdownConverter
-
-# Khởi tạo converter với file PDF đầu vào
-converter = PDFToMarkdownConverter(
-    pdf_path="./input/tai_lieu_mau.pdf",
-    output_dir="./output"
-)
-
-# Tiến hành chuyển đổi
-converter.convert(output_md_filename="ket_qua.md")
-```
-
-## 📂 KẾT QUẢ ĐẦU RA MẪU (OUTPUT STRUCTURE)
-
-Tệp .md sau khi xuất sẽ có định dạng tương tự mẫu dưới đây:
-```Markdown
-# CHƯƠNG I: TỔNG QUAN HỆ THỐNG
-
-Tài liệu này mô tả chi tiết quy trình chuyển đổi tài liệu PDF sang dạng định dạng Markdown chuẩn [^fn_1].
-
-## 1.1 PHÂN TÍCH THÔNG SỐ
-
-Dưới đây là sơ đồ kiến trúc hệ thống được trích xuất từ tài liệu gốc:
-
-![Nội dung trích xuất tại trang 1](./images/page-1_img-1.png)
-
-### a) Bảng dữ liệu thực nghiệm
-
-Toàn bộ dữ liệu đo đạc được đóng gói dưới dạng bảng hình ảnh [^fn_2]:
-
-![Nội dung trích xuất tại trang 2](./images/page-2_img-1.png)
-
-- Đã hoàn tất công đoạn cắt ảnh.
-- Đã lưu file đúng định dạng đặt tên.
+*(EasyOCR sẽ tự động tải các tệp model về máy ở lần chạy đầu tiên).*
 
 ---
 
-## NỘI DUNG GHI CHÚ CHÂN TRANG (FOOTNOTES)
+## 4. HƯỚNG DẪN CÀI ĐẶT DÙNG CHO MÁY OFFLINE (KHÔNG CÓ INTERNET)
 
-[^fn_1]: *(Trang 1)* Quy trình này áp dụng cho các tài liệu kỹ thuật phát hành từ năm 2024.
-[^fn_2]: *(Trang 2)* Bảng số liệu được tổng hợp từ thiết bị đo tự động.
+### Bước 1: Cài đặt Poppler
+
+Giải nén Poppler vào ổ `C:\poppler\` tương tự như trên máy Online.
+
+### Bước 2: Cài đặt Python Packages Offline
+
+* **Trên máy Online:** Tải toàn bộ các wheel package về thư mục:
+```bash
+pip download -r requirements.txt -d ./wheels
+
 ```
 
-## ⚙️ BẢNG THAM SỐ CẤU HÌNH (CONFIGURATION)
 
-|Tham số | Giá trị mặc định | Mô tả|
-|--------------------|------|------|
-|DEFAULT_FONT_SIZE | 14pt | Kích thước chữ mặc định cho toàn bộ text|
-|DPI | 300 | Độ phân giải render khi xuất và cắt ảnh|
-|HEADER_RATIO | 0.08 | Vùng đỉnh trang (8%) dành cho Header (bị loại bỏ)|
-|FOOTER_RATIO | 0.08 | Vùng đáy trang (8%) dành cho Footer (bị loại bỏ)|
-|FOOTNOTE_REGION | 0.25 | Vùng đáy trang (25%) để tìm kiếm Footnote|
+* **Trên máy Offline:** Copy thư mục `wheels` sang máy offline và cài đặt:
+```bash
+pip install --no-index --find-links=./wheels -r requirements.txt
 
-## 📝 LICENSE & DỰ ÁN
+```
 
-Dự án được phát hành dưới bản quyền MIT License. Mọi đóng góp, báo lỗi (Issues) hoặc yêu cầu tính năng mới (Pull Requests) đều được chào đón!
+
+
+### Bước 3: Đặt mô hình EasyOCR vào đúng thư mục hệ thống
+
+1. Copy 3 file `.zip` (`craft_mlt_25k.zip`, `vietnamese.zip`, `latin.zip`) sang máy Offline.
+2. Truy cập vào đường dẫn sau trên Windows (Tự tạo folder nếu chưa có):
+```text
+C:\Users\<Tên_User_Windows>\.EasyOCR\model\
+
+```
+
+
+*(Ví dụ: `C:\Users\Admin\.EasyOCR\model\`)*
+3. **Dán (Paste) cả 3 file `.zip` vào thư mục `model` này (KHÔNG GIẢI NÉN).**
+
+### Bước 4: Cấu hình chế độ Offline
+
+Trong tệp `config.py`, chuyển biến cấu hình sang `True`:
+
+```python
+OFFLINE_MODE = True
+
+```
+
+---
+
+## 5. HƯỚNG DẪN SỬ DỤNG DỰ ÁN
+
+1. Sao chép file PDF cần chuyển đổi vào thư mục `./input/`.
+2. Mở file `main.py` và chỉnh sửa tên tệp đầu vào ở dòng:
+```python
+input_pdf_name = "ten_file_cua_ban.pdf"
+
+```
+
+
+3. Chạy chương trình:
+```bash
+python main.py
+
+```
+
+
+4. Kết quả xuất ra sẽ nằm ở thư mục `./output/result.md` và toàn bộ hình ảnh/bảng biểu nằm tại `./output/images/`.
