@@ -14,24 +14,24 @@ os.makedirs(DEFAULT_INPUT_DIR, exist_ok=True)
 os.makedirs(DEFAULT_OUTPUT_DIR, exist_ok=True)
 os.makedirs(DEFAULT_IMAGES_DIR, exist_ok=True)
 
-# Đường dẫn tới thư mục bin của Poppler trên Windows
-# (Hãy điều chỉnh lại đường dẫn bên dưới cho đúng vị trí giải nén Poppler trên máy bạn)
-POPPLER_PATH = r"E:\sw\poppler-26.07.0\Library\bin"
+# Đường dẫn tới thư mục bin của Poppler (Sửa lại cho đúng vị trí trên máy bạn)
+POPPLER_PATH = r"D:\Softwares\poppler-26.07.0\Library\bin"
 
 # =============================================================================
-# 2. CẤU HÌNH NGÔN NGỮ & OCR (ƯU TIÊN TIẾNG VIỆT)
+# 2. CẤU HÌNH NGÔN NGỮ MẶC ĐỊNH (TIẾNG VIỆT)
 # =============================================================================
-OCR_LANGUAGES = ['vi', 'en']  # EasyOCR ưu tiên Tiếng Việt trước, Tiếng Anh sau
+# Mã ngôn ngữ Windows OCR mặc định cho Tiếng Việt
+WIN_OCR_LANG = "vi-VN"
 
-DPI = 400
-CLASSIFY_CHAR_THRESHOLD = 50  # Số ký tự tối thiểu để coi là Native Text
+DPI = 300
+CLASSIFY_CHAR_THRESHOLD = 50
 
 # =============================================================================
 # 3. THAM SỐ VÙNG BỐ CỤC (LAYOUT RATIOS)
 # =============================================================================
-HEADER_RATIO = 0.08          # Loại bỏ 8% vùng đỉnh trang
-FOOTER_RATIO = 0.08          # Loại bỏ 8% vùng đáy trang
-FOOTNOTE_START_RATIO = 0.75  # Vùng quét Footnote (75% - 92%)
+HEADER_RATIO = 0.08         # Loại bỏ 8% vùng đỉnh trang
+FOOTER_RATIO = 0.08         # Loại bỏ 8% vùng đáy trang
+FOOTNOTE_START_RATIO = 0.75  # Vùng tìm kiếm Footnote (75% - 92%)
 
 # =============================================================================
 # 4. QUY CHUẨN ĐẶT TÊN VÀ XUẤT FOOTNOTE

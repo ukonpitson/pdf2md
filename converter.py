@@ -2,10 +2,11 @@ import fitz  # PyMuPDF
 import re
 import os
 import cv2
+import asyncio
 import numpy as np
 from PIL import Image
 from pdf2image import convert_from_path
-import easyocr
+import winocr
 
 import config
 
@@ -19,11 +20,21 @@ class PDFToMarkdownConverter:
         os.makedirs(self.output_dir, exist_ok=True)
         os.makedirs(self.images_dir, exist_ok=True)
         
-        print(f"Đang khởi tạo EasyOCR với ngôn ngữ: {config.OCR_LANGUAGES}...")
-        self.reader = easyocr.Reader(config.OCR_LANGUAGES, gpu=False)
-        
         self.footnotes = []
         self.markdown_lines = []
+
+    def _run_winocr(self, pil_image):
+        """Hàm bọc gọi winocr (bất đồng bộ) xử lý ảnh PIL với ngôn ngữ Tiếng Việt"""
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+        result = loop.run_until_complete(
+            winocr.recognize_pil(pil_image, lang=config.WIN_OCR_LANG)
+        )
+        return result.get("text", "")
 
     def classify_page(self, page):
         """Phân loại trang: Native Text hay Scan OCR"""
@@ -89,11 +100,9 @@ class PDFToMarkdownConverter:
         for b in blocks:
             x0, y0, x1, y1, text, block_no, block_type = b
             
-            # Loại bỏ Header/Footer
             if y1 < config.HEADER_RATIO * page_height or y0 > (1 - config.FOOTER_RATIO) * page_height:
                 continue
                 
-            # Trích xuất Footnote
             if y0 > config.FOOTNOTE_START_RATIO * page_height and len(text.strip()) < 200:
                 self.footnotes.append({"page": page_num, "text": text.strip()})
                 fn_idx = len(self.footnotes)
@@ -126,16 +135,10 @@ class PDFToMarkdownConverter:
                 self.markdown_lines.append(" ".join(current_paragraph))
 
     # =========================================================================
-    # NHÁNH B: SCANNED IMAGE (EASYOCR TIẾNG VIỆT)
-    # =========================================================================
-    # =========================================================================
-    # NHÁNH B: SCANNED IMAGE (EASYOCR TIẾNG VIỆT TỐI ƯU NÉT CHỮ)
-    # =========================================================================
-    # =========================================================================
-    # NHÁNH B: SCANNED IMAGE (EASYOCR TIẾNG VIỆT TỐI ƯU NÉT CHỮ)
+    # NHÁNH B: SCANNED IMAGE (DÙNG WINOCR THUẦN TIẾNG VIỆT)
     # =========================================================================
     def process_scanned_page(self, page_num):
-        # 1. Chuyển PDF sang Ảnh với DPI cao (300)
+        # 1. Chuyển PDF sang Ảnh có kèm poppler_path
         images = convert_from_path(
             self.pdf_path, 
             first_page=page_num, 
@@ -144,61 +147,49 @@ class PDFToMarkdownConverter:
             poppler_path=config.POPPLER_PATH
         )
         
-        orig_img = np.array(images[0])
-        h_orig, w_orig = orig_img.shape[:2]
-
-        # Phóng to ảnh 1.5 lần nếu ảnh gốc nhỏ để EasyOCR nhận diện dấu tiếng Việt tốt hơn
-        if w_orig < 2000:
-            scale_factor = 1.5
-            orig_img = cv2.resize(orig_img, None, fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_CUBIC)
-        
-        gray = cv2.cvtColor(orig_img, cv2.COLOR_RGB2GRAY)
+        open_cv_image = np.array(images[0])
+        gray = cv2.cvtColor(open_cv_image, cv2.COLOR_RGB2GRAY)
         h, w = gray.shape
 
-        # Tăng cường độ tương phản (CLAHE) giúp chữ và dấu đậm nét hơn hẳn
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-        enhanced = clahe.apply(gray)
-
-        # 2. Phát hiện & Cắt Bảng/Ảnh trên bản Threshold
-        thresh = cv2.adaptiveThreshold(enhanced, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 15, 8)
+        thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+        
+        # 2. Cắt Bảng/Ảnh
         img_count = 1
         contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
         for cnt in contours:
             x, y, box_w, box_h = cv2.boundingRect(cnt)
-            # Lọc bỏ khung hình ảnh/bảng biểu
-            if (box_w > w * 0.35 and box_h > h * 0.12) and not (box_w > w * 0.9 and box_h > h * 0.9):
-                crop_img = orig_img[y:y+box_h, x:x+box_w]
+            if (box_w > w * 0.3 and box_h > h * 0.1) and not (box_w > w * 0.9 and box_h > h * 0.9):
+                crop_img = open_cv_image[y:y+box_h, x:x+box_w]
                 img_filename = self._get_image_filename(page_num, img_count)
                 cv2.imwrite(os.path.join(self.images_dir, img_filename), cv2.cvtColor(crop_img, cv2.COLOR_RGB2BGR))
                 
-                self.markdown_lines.append(f"\n![Nội dung trích xuất tại trang {page_num}](./images/{image_filename if 'image_filename' in locals() else img_filename})\n")
+                self.markdown_lines.append(f"\n![Nội dung trích xuất tại trang {page_num}](./images/{img_filename})\n")
                 img_count += 1
-                
-                # Xóa vùng ảnh đã cắt khỏi bản gray để không đọc OCR đè lên
-                cv2.rectangle(enhanced, (x, y), (x + box_w, y + box_h), (255, 255, 255), -1)
+                cv2.rectangle(thresh, (x, y), (x + box_w, y + box_h), (255, 255, 255), -1)
 
-        # 3. Masking Header / Footer (Xóa lề trên/dưới)
-        enhanced[0:int(h * config.HEADER_RATIO), :] = 255
-        enhanced[int(h * (1 - config.FOOTER_RATIO)):h, :] = 255
+        # 3. Masking Header / Footer
+        thresh[0:int(h * config.HEADER_RATIO), :] = 255
+        thresh[int(h * (1 - config.FOOTER_RATIO)):h, :] = 255
 
-        # 4. Trích Footnote
+        # 4. Trích Footnote qua WinOCR
         fn_start_y = int(h * config.FOOTNOTE_START_RATIO)
         fn_end_y = int(h * (1 - config.FOOTER_RATIO))
-        footnote_crop = enhanced[fn_start_y:fn_end_y, :]
+        footnote_crop = thresh[fn_start_y:fn_end_y, :]
+        fn_pil = Image.fromarray(footnote_crop)
         
-        fn_results = self.reader.readtext(footnote_crop, detail=0)
-        fn_text = " ".join(fn_results).strip()
-        
+        fn_text = self._run_winocr(fn_pil).strip()
         if fn_text and len(fn_text) < 200:
             self.footnotes.append({"page": page_num, "text": fn_text})
             fn_idx = len(self.footnotes)
             self.markdown_lines.append(f"[^fn_{fn_idx}]")
-            enhanced[fn_start_y:fn_end_y, :] = 255
+            thresh[fn_start_y:fn_end_y, :] = 255
 
-        # 5. Đọc chữ trực tiếp từ ảnh Grayscale đã tăng tương phản (KHÔNG DÙNG THRESHOLD NỮA)
-        ocr_results = self.reader.readtext(enhanced, detail=0)
-        for line in ocr_results:
+        # 5. Đọc chữ toàn bộ trang bằng WinOCR (Mặc định vi-VN)
+        full_pil = Image.fromarray(thresh)
+        ocr_text = self._run_winocr(full_pil)
+        
+        for line in ocr_text.split('\n'):
             formatted = self.parse_regex_structure(line)
             if formatted:
                 self.markdown_lines.append(formatted)
@@ -214,12 +205,11 @@ class PDFToMarkdownConverter:
                 print(f"  -> Nhánh A (Native Text)")
                 self.process_text_page(page, page_num)
             else:
-                print(f"  -> Nhánh B (Scanned Image - EasyOCR Tiếng Việt)")
+                print(f"  -> Nhánh B (Scanned Image - WinOCR Tiếng Việt)")
                 self.process_scanned_page(page_num)
                 
             self.markdown_lines.append("\n---\n")
 
-        # Gom Footnotes về cuối tài liệu
         if self.footnotes:
             self.markdown_lines.append(config.FOOTNOTE_SECTION_HEADER)
             for idx, fn in enumerate(self.footnotes, 1):
