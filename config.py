@@ -2,36 +2,40 @@ import os
 import re
 
 # =============================================================================
-# 1. CẤU HÌNH ĐƯỜNG DẪN HỆ THỐNG & POPPLER
+# 1. CẤU HÌNH ĐƯỜNG DẪN HỆ THỐNG, CÔNG CỤ & LOGS
 # =============================================================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 DEFAULT_INPUT_DIR = os.path.join(BASE_DIR, "input")
 DEFAULT_OUTPUT_DIR = os.path.join(BASE_DIR, "output")
 DEFAULT_IMAGES_DIR = os.path.join(DEFAULT_OUTPUT_DIR, "images")
+DEFAULT_LOGS_DIR = os.path.join(BASE_DIR, "logs")
 
 os.makedirs(DEFAULT_INPUT_DIR, exist_ok=True)
 os.makedirs(DEFAULT_OUTPUT_DIR, exist_ok=True)
 os.makedirs(DEFAULT_IMAGES_DIR, exist_ok=True)
+os.makedirs(DEFAULT_LOGS_DIR, exist_ok=True)
 
-# Đường dẫn tới thư mục bin của Poppler (Sửa lại cho đúng vị trí trên máy bạn)
-POPPLER_PATH = r"D:\Softwares\poppler-26.07.0\Library\bin"
+# Đường dẫn tới thư mục bin của Poppler
+POPPLER_PATH = r"E:\sw\poppler-26.07.0\Library\bin"
+
+# Đường dẫn tệp thực thi Tesseract OCR trên Windows
+TESSERACT_PATH = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 # =============================================================================
-# 2. CẤU HÌNH NGÔN NGỮ MẶC ĐỊNH (TIẾNG VIỆT)
+# 2. CẤU HÌNH NGÔN NGỮ OCR & XỬ LÝ ẢNH
 # =============================================================================
-# Mã ngôn ngữ Windows OCR mặc định cho Tiếng Việt
-WIN_OCR_LANG = "vi-VN"
+TESSDATA_LANG = "vie+eng"
 
 DPI = 300
-CLASSIFY_CHAR_THRESHOLD = 50
+CLASSIFY_CHAR_THRESHOLD = 50  # Số ký tự tối thiểu để coi là Native Text
 
 # =============================================================================
 # 3. THAM SỐ VÙNG BỐ CỤC (LAYOUT RATIOS)
 # =============================================================================
-HEADER_RATIO = 0.08         # Loại bỏ 8% vùng đỉnh trang
-FOOTER_RATIO = 0.08         # Loại bỏ 8% vùng đáy trang
-FOOTNOTE_START_RATIO = 0.75  # Vùng tìm kiếm Footnote (75% - 92%)
+HEADER_RATIO = 0.08          # Loại bỏ 8% vùng đỉnh trang
+FOOTER_RATIO = 0.08          # Loại bỏ 8% vùng đáy trang
+FOOTNOTE_START_RATIO = 0.75  # Vùng quét Footnote (75% - 92%)
 
 # =============================================================================
 # 4. QUY CHUẨN ĐẶT TÊN VÀ XUẤT FOOTNOTE
